@@ -4,6 +4,7 @@ import requests
 import json
 import random
 from discord.ext import commands
+from replit import db
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,33 +21,93 @@ def boldText(txt):
     else:
         return '**' + str(txt) + '**'
 
-# <PROTOTYPE FUNCTION>
-# Use this function as a template in finding and returning information about a particular TemTem.
-def get_tem():
-    response = requests.get("https://temtem-api.mael.tech/api/temtems")
-    json_data = json.loads(response.text)
-    i = random.randint(0, len(json_data) - 1)
-    # temUrl = json_data[i]["wikiUrl"]
-    # temName = json_data[i]["name"]
-    embed = discord.Embed(title=json_data[i]["name"],
-                          url=json_data[i]["wikiUrl"],
-                          description=json_data[i]["gameDescription"],
+
+def checkTemExist(name="", number=0):
+    if "TemTem" in db.keys():
+        if number != 0:
+            if str(number) in db["TemTem"]:  # Checking based on number
+                print("Found " + str(number) + " in db!")
+                return db["TemTem"][str(number)]
+            else:
+                print(f'TemTem with {number} not in db!')
+                response = requests.get(
+                    "https://temtem-api.mael.tech/api/temtems/" + str(number))
+                json_data = json.loads(response.text)
+                db["TemTem"][str(number)] = json_data
+                # print(json_data)
+                return json_data
+
+        elif name != "":
+            for tem in db["TemTem"]:  # Checking based on name
+                # print(db["TemTem"][tem])
+                if db["TemTem"][tem]["name"] == name:
+                    print(f'Found {name} in db!')
+                    return db["TemTem"][tem]
+            print(f'TemTem with {name} not in db!')
+            response = requests.get("https://temtem-api.mael.tech/api/temtems",
+                                    params={'names': [name]})
+            json_data = json.loads(response.text)
+            # print(json_data[]0)
+            db["TemTem"][json_data[0]["number"]] = json_data[0]
+            return json_data[0]
+    else:
+        print("Database does not exist")
+        db["TemTem"] = {}  # JSON Object
+        if number != 0:
+            response = requests.get(
+                "https://temtem-api.mael.tech/api/temtems/" + str(number))
+            json_data = json.loads(response.text)
+            db["TemTem"][str(number)] = json_data
+            return json_data
+        else:
+            response = requests.get("https://temtem-api.mael.tech/api/temtems",
+                                    params={'names': [name]})
+            json_data = json.loads(response.text)
+            # print(json_data[]0)
+            db["TemTem"][json_data[0]["number"]] = json_data[0]
+            return json_data[0]
+
+
+def embedTem(jsonTem):
+    embed = discord.Embed(title=jsonTem["name"],
+                          url=jsonTem["wikiUrl"],
+                          description=jsonTem["gameDescription"],
                           color=0x9466de)
-    embed.set_thumbnail(url=json_data[i]["portraitWikiUrl"])
+    embed.set_thumbnail(url=jsonTem["portraitWikiUrl"])
     embed.add_field(
         name="Traits",
         value=
-        f'Trait 1: {boldText(json_data[i]["traits"][0])}\nTrait 2: {boldText(json_data[i]["traits"][1])}'
+        f'Trait 1: {boldText(jsonTem["traits"][0])}\nTrait 2: {boldText(jsonTem["traits"][1])}'
     )
     embed.add_field(name="Stats",
-                    value=f'HP: {boldText(json_data[i]["stats"]["hp"])}\n\
-                      STA: {boldText(json_data[i]["stats"]["sta"])}\n\
-                      SPD: {boldText(json_data[i]["stats"]["spd"])}\n\
-                      ATK: {boldText(json_data[i]["stats"]["atk"])}\n\
-                      DEF: {boldText(json_data[i]["stats"]["def"])}\n\
-                      SPATK: {boldText(json_data[i]["stats"]["spatk"])}\n\
-                      SPDEF: {boldText(json_data[i]["stats"]["spdef"])}')
+                    value=f'HP: {boldText(jsonTem["stats"]["hp"])}\n\
+                    STA: {boldText(jsonTem["stats"]["sta"])}\n\
+                    SPD: {boldText(jsonTem["stats"]["spd"])}\n\
+                    ATK: {boldText(jsonTem["stats"]["atk"])}\n\
+                    DEF: {boldText(jsonTem["stats"]["def"])}\n\
+                    SPATK: {boldText(jsonTem["stats"]["spatk"])}\n\
+                    SPDEF: {boldText(jsonTem["stats"]["spdef"])}')
     return embed
+
+
+# <PROTOTYPE FUNCTION>
+# Use this function as a template in finding and returning information about a particular TemTem.
+def getRandTem():
+    i = random.randint(1, 164)
+    
+    # response = requests.get("https://temtem-api.mael.tech/api/temtems")
+    # json_data = json.loads(response.text)
+    jsonTem = checkTemExist(number=i)
+    # print(json_data)
+    # temUrl = json_data[i]["wikiUrl"]
+    # temName = json_data[i]["name"]
+
+    return embedTem(jsonTem)
+
+
+def getTem(name):
+    jsonTem = checkTemExist(name=name)
+    return embedTem(jsonTem)
 
 
 @bot.event
@@ -74,9 +135,17 @@ ctx              - Possibly the equivalent to message.channel?
 
 @bot.command(
 )  # Event for a command with the same name as the function defined below.
+async def tem(ctx, name):
+    print("Received [tem] command")
+    await ctx.send(embed=getTem(name))
+    # await ctx.send(f'Your random tem is {get_tem()}!')
+
+
+@bot.command(
+)  # Event for a command with the same name as the function defined below.
 async def randtem(ctx):
     print("Received [randtem] command")
-    await ctx.send(embed=get_tem())
+    await ctx.send(embed=getRandTem())
     # await ctx.send(f'Your random tem is {get_tem()}!')
 
 
@@ -108,5 +177,6 @@ async def info_error(ctx, error):
         await ctx.send('I could not find that member...')
 
 
+db.clear()
 bot.run(my_secret)  # Calls and starts the bot process
 # client.run(my_secret)     # Not used since we are using the bot framework
